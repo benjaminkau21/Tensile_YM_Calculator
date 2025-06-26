@@ -46,13 +46,10 @@ def parse_sample_tables_from_csv(uploaded_file):
 
 
 # --- Compute Young’s modulus via regression ---
-def compute_regression_modulus(df, strain_range=(0.02, 0.05)):
+def compute_regression_modulus(df, strain_range=(2, 5)):
     strain_col = "Tensile strain (Strain 1)"
     stress_col = "Tensile stress"
     df = df[[strain_col, stress_col]].dropna().copy()
-
-    if df[strain_col].max() > 1:
-        df[strain_col] /= 100.0
 
     df_window = df[(df[strain_col] >= strain_range[0]) & (df[strain_col] <= strain_range[1])]
     if len(df_window) < 2:
@@ -80,14 +77,14 @@ if uploaded_file:
     else:
         with st.sidebar:
             st.header("⚙️ Settings")
-            strain_min = st.slider("Min Strain (%)", 0.0, 10.0, 2.0, 0.1)
-            strain_max = st.slider("Max Strain (%)", 0.0, 10.0, 5.0, 0.1)
+            strain_min = st.slider("Min Range Strain (%)", 0.0, 100.0, 2.0, 0.1)
+            strain_max = st.slider("Max Range Strain (%)", 0.0, 100.0, 5.0, 0.1)
 
             sample_selected = st.selectbox("🧪 Choose Sample", list(sample_tables.keys()))
 
         st.subheader(f"📊 Stress–Strain Curve — {sample_selected}")
         df = sample_tables[sample_selected]
-        slope, x_fit, y_fit = compute_regression_modulus(df, (strain_min / 100, strain_max / 100))
+        slope, x_fit, y_fit = compute_regression_modulus(df, (strain_min, strain_max))
 
         # Plot
         fig, ax = plt.subplots()
@@ -98,7 +95,7 @@ if uploaded_file:
         ax.plot(strain_data, df[stress_col], label="Raw Data", alpha=0.6)
 
         if slope is not None:
-            ax.plot(x_fit * 100, slope * x_fit, 'r--', label=f"Fit: E ≈ {slope:.2f} MPa")
+            ax.plot(x_fit, slope * x_fit, 'r--', label=f"Fit: E ≈ {slope:.2f} MPa")
             st.success(f"**Estimated Young’s Modulus:** {slope:.2f} MPa")
         else:
             st.warning("⚠️ Not enough valid data points in selected strain range.")
