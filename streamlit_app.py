@@ -44,14 +44,19 @@ def parse_sample_tables_from_csv(uploaded_file):
             i += 1
     return sample_tables
 
-
 # --- Compute Young’s modulus via regression ---
 def compute_regression_modulus(df, strain_range=(2, 5)):
     strain_col = "Tensile strain (Strain 1)"
     stress_col = "Tensile stress"
     df = df[[strain_col, stress_col]].dropna().copy()
 
-    df_window = df[(df[strain_col] >= strain_range[0]) & (df[strain_col] <= strain_range[1])]
+    is_percent = df[strain_col].max() > 1
+    if is_percent:
+        df[strain_col] = df[strain_col] / 100.0
+
+    min_strain = strain_range[0] / 100.0
+    max_strain = strain_range[1] / 100.0
+    df_window = df[(df[strain_col] >= min_strain) & (df[strain_col] <= max_strain)]
     if len(df_window) < 2:
         return None, None, None
 
@@ -60,8 +65,12 @@ def compute_regression_modulus(df, strain_range=(2, 5)):
     y = df_grouped[stress_col].values
 
     slope, intercept, r_value, _, _ = linregress(x, y)
-    return slope, x, y
 
+    # Adjust slope back to MPa / % if strain was originally in %
+    if is_percent:
+        slope *= 100
+
+    return slope, x, y
 
 # --- Streamlit UI ---
 st.set_page_config("Tensile Stress Analyzer", layout="centered")
@@ -79,7 +88,6 @@ if uploaded_file:
             st.header("⚙️ Settings")
             strain_min = st.slider("Min Range Strain (%)", 0.0, 100.0, 2.0, 0.1)
             strain_max = st.slider("Max Range Strain (%)", 0.0, 100.0, 5.0, 0.1)
-
             sample_selected = st.selectbox("🧪 Choose Sample", list(sample_tables.keys()))
 
         st.subheader(f"📊 Stress–Strain Curve — {sample_selected}")
@@ -95,7 +103,8 @@ if uploaded_file:
         ax.plot(strain_data, df[stress_col], label="Raw Data", alpha=0.6)
 
         if slope is not None:
-            ax.plot(x_fit, slope * x_fit, 'r--', label=f"Fit: E ≈ {slope:.2f} MPa")
+            x_plot = x_fit * 100  # convert strain back to %
+            ax.plot(x_plot, slope * x_fit, 'r--', label=f"Fit: E ≈ {slope:.2f} MPa")
             st.success(f"**Estimated Young’s Modulus:** {slope:.2f} MPa")
         else:
             st.warning("⚠️ Not enough valid data points in selected strain range.")
@@ -109,10 +118,12 @@ if uploaded_file:
         st.subheader("📤 Export Young’s Moduli for All Samples")
         results = []
         for sample_name, df_sample in sample_tables.items():
-            E, _, _ = compute_regression_modulus(df_sample, (strain_min / 100, strain_max / 100))
-            results.append({"Sample": sample_name, "Young’s Modulus (MPa)": E if E is not None else "Not Computed"})
+            E, _, _ = compute_regression_modulus(df_sample, (strain_min, strain_max))
+            results.append({
+                "Sample": sample_name,
+                "Young’s Modulus (MPa)": round(E, 2) if E is not None else "Not Computed"
+            })
 
         df_moduli = pd.DataFrame(results)
-
         csv = df_moduli.to_csv(index=False).encode()
         st.download_button("Download Moduli CSV", csv, file_name="youngs_moduli.csv", mime="text/csv")
