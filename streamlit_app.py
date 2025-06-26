@@ -65,11 +65,6 @@ def compute_regression_modulus(df, strain_range=(2, 5)):
     y = df_grouped[stress_col].values
 
     slope, intercept, r_value, _, _ = linregress(x, y)
-
-    # Adjust slope back to MPa / % if strain was originally in %
-    if is_percent:
-        slope *= 100
-
     return slope, x, y
 
 # --- Streamlit UI ---
