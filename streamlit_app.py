@@ -19,55 +19,55 @@ def parse_sample_tables_from_csv(uploaded_file):
     global_metadata = {}
     raw_df = pd.read_csv(uploaded_file, header=None)
 
-# Extract global metadata until Results Table 2 Header
-for j in range(len(raw_df)):
-    if raw_df.iloc[j,0] == "Results Table 2":
-        break
-    key = raw_df.iloc[j,1]
-    val = raw_df.iloc[j,2] if raw_df.shape[1] > 2 else None
-    if pd.notna(key) and key in metadata_keys:
-        global_metadata[key] = val
-
-# Extract everything below Results Table 2 and split them into samples 
-    start_idx = raw_df[0][raw_df[0] == "Results Table 2"].index
-    if len(start_idx) == 0:
-        return {}, {}
-
-    start_row = start_idx[0] + 1
-    i = start_row
+    mode = None  # 'metadata' or 'data'
+    i = 0
     sample_index = 1
 
     while i < len(raw_df):
-        row = raw_df.iloc[i, 1:]
-        if set(headers).issubset(set(row.values)):
-            meta = {}
-            for j in range(i - 1, max(i - 15, 0), -1):
-                key = raw_df.iloc[j, 1]
-                val = raw_df.iloc[j, 2]
-                if pd.notna(key) and key in metadata_keys:
-                    meta[key] = val
+        row = raw_df.iloc[i]
+        first_cell = row[0] if len(row) > 0 else None
 
-            header_indices = {name: row[row == name].index[0] for name in headers}
-            i += 2
-
-            data_rows = []
-            while i < len(raw_df):
-                next_row = raw_df.iloc[i]
-                test_row = next_row[1:]
-                if set(headers).issubset(set(test_row.values)) or next_row.isnull().all():
-                    break
-                values = {key: next_row[idx] for key, idx in header_indices.items()}
-                data_rows.append(values)
-                i += 1
-
-            if data_rows:
-                df_sample = pd.DataFrame(data_rows).apply(pd.to_numeric, errors='coerce')
-                sample_name = f"Sample_{sample_index}"
-                sample_tables[sample_name] = df_sample.reset_index(drop=True)
-                sample_metadata[sample_name] = meta
-                sample_index += 1
-        else:
+        if first_cell == "Results Table 1":
+            mode = 'metadata'
             i += 1
+            continue
+
+        elif first_cell == "Results Table 2":
+            mode = 'data'
+            i += 1
+            continue
+
+        if mode == 'metadata':
+            key = row[1] if len(row) > 1 else None
+            val = row[2] if len(row) > 2 else None
+            if pd.notna(key) and key in metadata_keys:
+                global_metadata[key] = val
+
+        elif mode == 'data':
+            row_data = row[1:]
+            if set(headers).issubset(set(row_data.values)):
+                header_indices = {name: row_data[row_data == name].index[0] for name in headers}
+                i += 2
+
+                data_rows = []
+                while i < len(raw_df):
+                    next_row = raw_df.iloc[i]
+                    test_row = next_row[1:]
+                    if set(headers).issubset(set(test_row.values)) or next_row.isnull().all():
+                        break
+                    values = {key: next_row[idx] for key, idx in header_indices.items()}
+                    data_rows.append(values)
+                    i += 1
+
+                if data_rows:
+                    df_sample = pd.DataFrame(data_rows).apply(pd.to_numeric, errors='coerce')
+                    sample_name = f"Sample_{sample_index}"
+                    sample_tables[sample_name] = df_sample.reset_index(drop=True)
+                    sample_metadata[sample_name] = global_metadata.copy()
+                    sample_index += 1
+                continue
+
+        i += 1
 
     return sample_tables, sample_metadata
 
@@ -168,8 +168,13 @@ if uploaded_file:
 
         # --- Display parameters ---
         st.subheader("📌 Sample Parameters")
-        for key, value in meta.items():
-            st.write(f"**{key}**: {value} MPa")
+        for key in metadata_keys:
+            value = meta.get(key)
+            if pd.notna(value):
+                st.write(f"**{key}**: {value} MPa")
+            else:
+                st.write(f"**{key}**: _Not available_")
+
         if sample_selected in strain_at_break:
             st.write(f"**Tensile strain at Break / %**: {strain_at_break[sample_selected]:.2f} %")
 
