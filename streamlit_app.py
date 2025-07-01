@@ -238,10 +238,10 @@ if uploaded_file:
         
                 group_summary_rows.append({
                     "Group": group_name,
-                    "Avg Young’s Modulus (MPa)": round(averages["Young’s Modulus"], 2) if not pd.isna(averages["Young’s Modulus"]) else "—",
-                    "Avg Max Stress (MPa)": round(averages["Max Stress"], 2) if not pd.isna(averages["Max Stress"]) else "—",
-                    "Avg Stress at Break (MPa)": round(averages["Stress at Break"], 2) if not pd.isna(averages["Stress at Break"]) else "—",
-                    "Avg Strain at Break (%)": round(averages["Strain at Break"], 2) if not pd.isna(averages["Strain at Break"]) else "—",
+                    "Avg Young’s Modulus (MPa)": round(averages.get("Young’s Modulus", np.nan), 2) if not pd.isna(averages.get("Young’s Modulus")) else "—",
+                    "Avg Max Stress (MPa)": round(averages.get("Max Stress", np.nan), 2) if not pd.isna(averages.get("Max Stress")) else "—",
+                    "Avg Stress at Break (MPa)": round(averages.get("Stress at Break", np.nan), 2) if not pd.isna(averages.get("Stress at Break")) else "—",
+                    "Avg Strain at Break (%)": round(averages.get("Strain at Break", np.nan), 2) if not pd.isna(averages.get("Strain at Break")) else "—",
                 })
         
             df_group_summary = pd.DataFrame(group_summary_rows)
