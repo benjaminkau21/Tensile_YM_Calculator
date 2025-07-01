@@ -13,18 +13,16 @@ def parse_sample_tables_from_csv(uploaded_file):
         "Tensile stress at Maximum Force",
         "Tensile stress at TENSILE STRESS at breaks"
     ]
-
     metadata_target_keys = [key.strip().replace("  ", " ") for key in metadata_target_keys]
 
     sample_tables = {}
     sample_metadata = {}
-    global_metadata = {}
     raw_df = pd.read_csv(uploaded_file, header=None)
 
     mode = None
     i = 0
     sample_index = 1
-    metadata_df = None
+    metadata_rows = []
 
     while i < len(raw_df):
         row = raw_df.iloc[i]
@@ -46,17 +44,13 @@ def parse_sample_tables_from_csv(uploaded_file):
                 header_indices = {key: row_data[row_data == key].index[0] for key in matched_keys}
                 i += 2  # Skip unit row
 
-                data_rows = []
                 while i < len(raw_df):
                     next_row = raw_df.iloc[i]
                     if str(next_row[0]) == "Results Table 2":
                         break
                     values = {key: next_row[idx] for key, idx in header_indices.items() if idx < len(next_row)}
-                    data_rows.append(values)
+                    metadata_rows.append(values)
                     i += 1
-
-                if data_rows:
-                    metadata_df = pd.DataFrame(data_rows)
                 continue
 
         elif mode == "data":
@@ -79,21 +73,14 @@ def parse_sample_tables_from_csv(uploaded_file):
                     df_sample = pd.DataFrame(data_rows).apply(pd.to_numeric, errors='coerce')
                     sample_name = f"Sample_{sample_index}"
                     sample_tables[sample_name] = df_sample.reset_index(drop=True)
-                    sample_metadata[sample_name] = {}
+                    if sample_index - 1 < len(metadata_rows):
+                        sample_metadata[sample_name] = metadata_rows[sample_index - 1]
+                    else:
+                        sample_metadata[sample_name] = {}
                     sample_index += 1
                 continue
         i += 1
-
-    if metadata_df is not None:
-        for key in metadata_df.columns:
-            series = metadata_df[key].dropna()
-            if not series.empty:
-                global_metadata[key] = series.iloc[0]
-
-        for name in sample_metadata:
-            sample_metadata[name] = global_metadata.copy()
-
-    return sample_tables, sample_metadata, list(global_metadata.keys())
+    return sample_tables, sample_metadata, metadata_target_keys
 
 # --- Regression method ---
 def compute_regression_modulus(df, strain_range=(2, 5)):
