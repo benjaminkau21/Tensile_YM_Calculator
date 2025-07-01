@@ -9,13 +9,17 @@ from difflib import get_close_matches
 @st.cache_data
 def parse_sample_tables_from_csv(uploaded_file):
     headers = ["Time", "Displacement", "Force", "Tensile stress", "Tensile strain (Strain 1)"]
+    metadata_target_keys = [
+        "Tensile stress at Maximum Force",
+        "Tensile stress at TENSILE STRESS at breaks"
+    ]
 
     sample_tables = {}
     sample_metadata = {}
     global_metadata = {}
     raw_df = pd.read_csv(uploaded_file, header=None)
 
-    mode = None  # 'metadata' or 'data'
+    mode = None
     i = 0
     sample_index = 1
 
@@ -24,26 +28,34 @@ def parse_sample_tables_from_csv(uploaded_file):
         first_cell = row[0] if len(row) > 0 else None
 
         if first_cell == "Results Table 1":
-            mode = 'metadata'
+            mode = "metadata"
             i += 1
             continue
 
         elif first_cell == "Results Table 2":
-            mode = 'data'
+            mode = "data"
             i += 1
             continue
 
-        if mode == 'metadata':
-            key = row[1] if len(row) > 1 else None
-            val = row[2] if len(row) > 2 else None
-            if pd.notna(key):
-                global_metadata[key] = val
+        if mode == "metadata":
+            row_data = row
+            if any(key in row_data.values for key in metadata_target_keys):
+                header_row = row_data.dropna().tolist()
+                header_indices = {name: row_data[row_data == name].index[0] for name in metadata_target_keys if name in row_data.values}
+                i += 2  # skip unit row
 
-        elif mode == 'data':
+                if i < len(raw_df):
+                    values_row = raw_df.iloc[i]
+                    for key, idx in header_indices.items():
+                        global_metadata[key] = values_row[idx]
+                    i += 1
+                continue
+
+        elif mode == "data":
             row_data = row[1:]
             if set(headers).issubset(set(row_data.values)):
                 header_indices = {name: row_data[row_data == name].index[0] for name in headers}
-                i += 2
+                i += 2  # skip unit row
 
                 data_rows = []
                 while i < len(raw_df):
