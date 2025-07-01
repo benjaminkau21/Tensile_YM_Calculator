@@ -11,7 +11,7 @@ def parse_sample_tables_from_csv(uploaded_file):
     headers = ["Time", "Displacement", "Force", "Tensile stress", "Tensile strain (Strain 1)"]
     metadata_target_keys = [
         "Tensile stress at Maximum Force",
-        "Tensile stress at TENSILE STRESS at breaks"
+        "Tensile stress at TENSILE STRESS  at breaks"  # note: double space
     ]
 
     sample_tables = {}
@@ -22,6 +22,7 @@ def parse_sample_tables_from_csv(uploaded_file):
     mode = None
     i = 0
     sample_index = 1
+    metadata_df = None
 
     while i < len(raw_df):
         row = raw_df.iloc[i]
@@ -40,15 +41,23 @@ def parse_sample_tables_from_csv(uploaded_file):
         if mode == "metadata":
             row_data = row
             if any(key in row_data.values for key in metadata_target_keys):
-                header_row = row_data.dropna().tolist()
+                # Found the header row
                 header_indices = {name: row_data[row_data == name].index[0] for name in metadata_target_keys if name in row_data.values}
-                i += 2  # skip unit row
+                i += 2  # skip units row
 
-                if i < len(raw_df):
-                    values_row = raw_df.iloc[i]
-                    for key, idx in header_indices.items():
-                        global_metadata[key] = values_row[idx]
+                # Extract rows into metadata_df
+                data_rows = []
+                while i < len(raw_df):
+                    next_row = raw_df.iloc[i]
+                    if next_row[0] == "Results Table 2":
+                        break
+                    values = {key: next_row[idx] for key, idx in header_indices.items()}
+                    data_rows.append(values)
                     i += 1
+
+                if data_rows:
+                    metadata_df = pd.DataFrame(data_rows)
+
                 continue
 
         elif mode == "data":
@@ -71,11 +80,22 @@ def parse_sample_tables_from_csv(uploaded_file):
                     df_sample = pd.DataFrame(data_rows).apply(pd.to_numeric, errors='coerce')
                     sample_name = f"Sample_{sample_index}"
                     sample_tables[sample_name] = df_sample.reset_index(drop=True)
-                    sample_metadata[sample_name] = global_metadata.copy()
+                    sample_metadata[sample_name] = {}  # Fill later
                     sample_index += 1
                 continue
 
         i += 1
+
+    # Extract metadata values (first non-null from each column)
+    if metadata_df is not None:
+        for key in metadata_target_keys:
+            series = metadata_df[key].dropna()
+            if not series.empty:
+                global_metadata[key] = series.iloc[0]
+
+        # Propagate to all sample metadata
+        for name in sample_metadata:
+            sample_metadata[name] = global_metadata.copy()
 
     return sample_tables, sample_metadata, list(global_metadata.keys())
 
