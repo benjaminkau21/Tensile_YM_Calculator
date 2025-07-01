@@ -218,6 +218,30 @@ if uploaded_file:
         
         summary_df = pd.DataFrame(summary_rows)
         st.dataframe(summary_df, use_container_width=True)
+
+        with st.expander("📈 Show Stress–Strain Plot"):
+            selected_sample = st.selectbox("Choose Sample to Plot", list(sample_tables.keys()))
+            if st.button("Show Plot"):
+                st.subheader(f"Stress–Strain Curve — {selected_sample}")
+                df = sample_tables[selected_sample]
+                slope, x_fit, y_fit = compute_regression_modulus(df, (strain_min, strain_max))
+        
+                fig, ax = plt.subplots()
+                strain_col = "Tensile strain (Strain 1)"
+                stress_col = "Tensile stress"
+                strain_data = df[strain_col] * (100 if df[strain_col].max() < 1 else 1)
+                ax.plot(strain_data, df[stress_col], label="Raw Data", alpha=0.6)
+        
+                if slope is not None:
+                    ax.plot(x_fit * 100, slope * x_fit, 'r--', label=f"Fit: E ≈ {slope:.2f} MPa")
+                    st.success(f"Estimated Young’s Modulus: {slope:.2f} MPa")
+                else:
+                    st.warning("⚠️ Not enough valid data points in selected strain range.")
+        
+                ax.set_xlabel("Tensile Strain / %")
+                ax.set_ylabel("Tensile Stress / MPa")
+                ax.legend()
+                st.pyplot(fig)
         
         # Optional: download CSV
         csv_data = summary_df.to_csv(index=False).encode()
