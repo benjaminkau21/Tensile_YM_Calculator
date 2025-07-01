@@ -89,9 +89,10 @@ def parse_sample_tables_from_csv(uploaded_file):
     # Extract metadata values (first non-null from each column)
     if metadata_df is not None:
         for key in metadata_target_keys:
-            series = metadata_df[key].dropna()
-            if not series.empty:
-                global_metadata[key] = series.iloc[0]
+            if key in metadata_df.columns:
+                series = metadata_df[key].dropna()
+                if not series.empty:
+                    global_metadata[key] = series.iloc[0]
 
         # Propagate to all sample metadata
         for name in sample_metadata:
