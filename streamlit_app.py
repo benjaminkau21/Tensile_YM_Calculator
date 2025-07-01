@@ -9,10 +9,6 @@ from difflib import get_close_matches
 @st.cache_data
 def parse_sample_tables_from_csv(uploaded_file):
     headers = ["Time", "Displacement", "Force", "Tensile stress", "Tensile strain (Strain 1)"]
-    metadata_keys = [
-        "Tensile stress at Maximum Force",
-        "Tensile stress at TENSILE STRESS at breaks"
-    ]
 
     sample_tables = {}
     sample_metadata = {}
@@ -40,7 +36,7 @@ def parse_sample_tables_from_csv(uploaded_file):
         if mode == 'metadata':
             key = row[1] if len(row) > 1 else None
             val = row[2] if len(row) > 2 else None
-            if pd.notna(key) and key in metadata_keys:
+            if pd.notna(key):
                 global_metadata[key] = val
 
         elif mode == 'data':
@@ -69,7 +65,7 @@ def parse_sample_tables_from_csv(uploaded_file):
 
         i += 1
 
-    return sample_tables, sample_metadata
+    return sample_tables, sample_metadata, list(global_metadata.keys())
 
 # --- Regression method ---
 def compute_regression_modulus(df, strain_range=(2, 5)):
@@ -126,7 +122,7 @@ uploaded_file = st.file_uploader("📂 Upload CSV File with Tensile Data", type=
 strain_at_break = {}  # Dict to store all strain at break values
 
 if uploaded_file:
-    sample_tables, sample_metadata = parse_sample_tables_from_csv(uploaded_file)
+    sample_tables, sample_metadata, metadata_keys = parse_sample_tables_from_csv(uploaded_file)
     if not sample_tables:
         st.error("❌ No 'Results Table 2' or valid samples found.")
     else:
