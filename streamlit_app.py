@@ -8,11 +8,16 @@ from difflib import get_close_matches
 # --- Cached parser ---
 @st.cache_data
 def parse_sample_tables_from_csv(uploaded_file):
+    import pandas as pd
+
     headers = ["Time", "Displacement", "Force", "Tensile stress", "Tensile strain (Strain 1)"]
     metadata_target_keys = [
         "Tensile stress at Maximum Force",
-        "Tensile stress at TENSILE STRESS  at breaks"  # note: double space
+        "Tensile stress at TENSILE STRESS at breaks"
     ]
+
+    # Normalize target keys (strip + single spaces)
+    metadata_target_keys = [key.strip().replace("  ", " ") for key in metadata_target_keys]
 
     sample_tables = {}
     sample_metadata = {}
@@ -26,7 +31,7 @@ def parse_sample_tables_from_csv(uploaded_file):
 
     while i < len(raw_df):
         row = raw_df.iloc[i]
-        first_cell = row[0] if len(row) > 0 else None
+        first_cell = str(row[0]) if len(row) > 0 else None
 
         if first_cell == "Results Table 1":
             mode = "metadata"
@@ -39,19 +44,19 @@ def parse_sample_tables_from_csv(uploaded_file):
             continue
 
         if mode == "metadata":
-            row_data = row
-            if any(key in row_data.values for key in metadata_target_keys):
-                # Found the header row
-                header_indices = {name: row_data[row_data == name].index[0] for name in metadata_target_keys if name in row_data.values}
-                i += 2  # skip units row
+            row_data = row.astype(str).str.strip().str.replace(r"\s+", " ", regex=True)
+            # Look for presence of any metadata keys in this header row
+            matched_keys = [key for key in metadata_target_keys if key in row_data.values]
+            if matched_keys:
+                header_indices = {key: row_data[row_data == key].index[0] for key in matched_keys}
+                i += 2  # Skip units row
 
-                # Extract rows into metadata_df
                 data_rows = []
                 while i < len(raw_df):
                     next_row = raw_df.iloc[i]
-                    if next_row[0] == "Results Table 2":
+                    if str(next_row[0]) == "Results Table 2":
                         break
-                    values = {key: next_row[idx] for key, idx in header_indices.items()}
+                    values = {key: next_row[idx] for key, idx in header_indices.items() if idx < len(next_row)}
                     data_rows.append(values)
                     i += 1
 
@@ -72,7 +77,7 @@ def parse_sample_tables_from_csv(uploaded_file):
                     test_row = next_row[1:]
                     if set(headers).issubset(set(test_row.values)) or next_row.isnull().all():
                         break
-                    values = {key: next_row[idx] for key, idx in header_indices.items()}
+                    values = {key: next_row[idx] for key, idx in header_indices.items() if idx < len(next_row)}
                     data_rows.append(values)
                     i += 1
 
@@ -86,15 +91,13 @@ def parse_sample_tables_from_csv(uploaded_file):
 
         i += 1
 
-    # Extract metadata values (first non-null from each column)
+    # Extract metadata values from metadata_df
     if metadata_df is not None:
-        for key in metadata_target_keys:
-            if key in metadata_df.columns:
-                series = metadata_df[key].dropna()
-                if not series.empty:
-                    global_metadata[key] = series.iloc[0]
+        for key in metadata_df.columns:
+            series = metadata_df[key].dropna()
+            if not series.empty:
+                global_metadata[key] = series.iloc[0]
 
-        # Propagate to all sample metadata
         for name in sample_metadata:
             sample_metadata[name] = global_metadata.copy()
 
