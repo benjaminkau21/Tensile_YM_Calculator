@@ -16,8 +16,19 @@ def parse_sample_tables_from_csv(uploaded_file):
 
     sample_tables = {}
     sample_metadata = {}
+    global_metadata = {}
     raw_df = pd.read_csv(uploaded_file, header=None)
 
+# Extract global metadata until Results Table 2 Header
+for j in range(len(raw_df)):
+    if raw_df.iloc[j,0] == "Results Table 2":
+        break
+    key = raw_df.iloc[j,1]
+    val = raw_df.iloc[j,2] if raw_df.shape[1] > 2 else None
+    if pd.notna(key) and key in metadata_keys:
+        global_metadata[key] = val
+
+# Extract everything below Results Table 2 and split them into samples 
     start_idx = raw_df[0][raw_df[0] == "Results Table 2"].index
     if len(start_idx) == 0:
         return {}, {}
