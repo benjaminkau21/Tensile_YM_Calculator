@@ -252,31 +252,31 @@ if uploaded_file:
             st.download_button("📥 Download Group Averages CSV", csv_group, file_name="group_averages.csv", mime="text/csv")
         
         
-                with st.expander("📈 Show Stress–Strain Plot"):
-                    if st.button("Show Plot"):
-                        st.subheader(f"Stress–Strain Curve — {sample_selected}")
-                        df = sample_tables[sample_selected]
-                        if method == "Linear Regression":
-                            slope, x_fit, y_fit = compute_regression_modulus(df, (strain_min, strain_max))
-                        else:
-                            slope, x_fit, y_fit = compute_gradient_modulus(df, (strain_min, strain_max))
-        
-                        fig, ax = plt.subplots()
-                        strain_col = "Tensile strain (Strain 1)"
-                        stress_col = "Tensile stress"
-                        strain_data = df[strain_col] * (100 if df[strain_col].max() < 1 else 1)
-                        ax.plot(strain_data, df[stress_col], label="Raw Data", alpha=0.6)
-        
-                        if slope is not None:
-                            ax.plot(np.array(x_fit) * 100, y_fit, 'r--', label=f"Fit: E ≈ {slope:.2f} MPa")
-                            st.success(f"Estimated Young’s Modulus: {slope:.2f} MPa")
-                        else:
-                            st.warning("⚠️ Not enough valid data points in selected strain range.")
-        
-                        ax.set_xlabel("Tensile Strain / %")
-                        ax.set_ylabel("Tensile Stress / MPa")
-                        ax.legend()
-                        st.pyplot(fig)
+            with st.expander("📈 Show Stress–Strain Plot"):
+                if st.button("Show Plot"):
+                    st.subheader(f"Stress–Strain Curve — {sample_selected}")
+                    df = sample_tables[sample_selected]
+                    if method == "Linear Regression":
+                        slope, x_fit, y_fit = compute_regression_modulus(df, (strain_min, strain_max))
+                    else:
+                        slope, x_fit, y_fit = compute_gradient_modulus(df, (strain_min, strain_max))
+    
+                    fig, ax = plt.subplots()
+                    strain_col = "Tensile strain (Strain 1)"
+                    stress_col = "Tensile stress"
+                    strain_data = df[strain_col] * (100 if df[strain_col].max() < 1 else 1)
+                    ax.plot(strain_data, df[stress_col], label="Raw Data", alpha=0.6)
+    
+                    if slope is not None:
+                        ax.plot(np.array(x_fit) * 100, y_fit, 'r--', label=f"Fit: E ≈ {slope:.2f} MPa")
+                        st.success(f"Estimated Young’s Modulus: {slope:.2f} MPa")
+                    else:
+                        st.warning("⚠️ Not enough valid data points in selected strain range.")
+    
+                    ax.set_xlabel("Tensile Strain / %")
+                    ax.set_ylabel("Tensile Stress / MPa")
+                    ax.legend()
+                    st.pyplot(fig)
 
         csv_data = summary_df.to_csv(index=False).encode()
         st.download_button("📥 Download Summary CSV", csv_data, file_name="tensile_summary.csv", mime="text/csv")
