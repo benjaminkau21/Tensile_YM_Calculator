@@ -193,31 +193,90 @@ if uploaded_file:
         summary_df = pd.DataFrame(summary_rows)
         st.dataframe(summary_df, use_container_width=True)
 
-        with st.expander("📈 Show Stress–Strain Plot"):
-            if st.button("Show Plot"):
-                st.subheader(f"Stress–Strain Curve — {sample_selected}")
-                df = sample_tables[sample_selected]
-                if method == "Linear Regression":
-                    slope, x_fit, y_fit = compute_regression_modulus(df, (strain_min, strain_max))
-                else:
-                    slope, x_fit, y_fit = compute_gradient_modulus(df, (strain_min, strain_max))
+        st.subheader("👥 Grouping and Averages")
 
-                fig, ax = plt.subplots()
-                strain_col = "Tensile strain (Strain 1)"
-                stress_col = "Tensile stress"
-                strain_data = df[strain_col] * (100 if df[strain_col].max() < 1 else 1)
-                ax.plot(strain_data, df[stress_col], label="Raw Data", alpha=0.6)
-
-                if slope is not None:
-                    ax.plot(np.array(x_fit) * 100, y_fit, 'r--', label=f"Fit: E ≈ {slope:.2f} MPa")
-                    st.success(f"Estimated Young’s Modulus: {slope:.2f} MPa")
-                else:
-                    st.warning("⚠️ Not enough valid data points in selected strain range.")
-
-                ax.set_xlabel("Tensile Strain / %")
-                ax.set_ylabel("Tensile Stress / MPa")
-                ax.legend()
-                st.pyplot(fig)
+        # Step 1: Grouping UI
+        group_dict = {}
+        all_samples = list(sample_tables.keys())
+        existing_groups = []
+        
+        with st.expander("➕ Define Sample Groups"):
+            num_groups = st.number_input("Number of Groups", min_value=1, max_value=10, value=1, step=1)
+        
+            for i in range(num_groups):
+                group_name = st.text_input(f"Group {i+1} Name", value=f"Group_{i+1}")
+                selected_samples = st.multiselect(f"Select Samples for {group_name}", all_samples, key=f"group_{i}")
+                group_dict[group_name] = selected_samples
+                existing_groups.extend(selected_samples)
+        
+            # Step 2: Display average summary per group
+            st.subheader("📈 Group Summary Statistics")
+        
+            group_summary_rows = []
+            for group_name, samples in group_dict.items():
+                group_data = []
+                for sample in samples:
+                    slope = None
+                    if method == "Linear Regression":
+                        slope, _, _ = compute_regression_modulus(sample_tables[sample], (strain_min, strain_max))
+                    else:
+                        slope, _, _ = compute_gradient_modulus(sample_tables[sample], (strain_min, strain_max))
+        
+                    meta = sample_metadata.get(sample, {})
+                    strain_break = strain_at_break.get(sample)
+        
+                    group_data.append({
+                        "Young’s Modulus": slope,
+                        "Max Stress": meta.get("Tensile stress at Maximum Force"),
+                        "Stress at Break": meta.get("Tensile stress at TENSILE STRESS at breaks"),
+                        "Strain at Break": strain_break
+                    })
+        
+                # Calculate averages
+                df_group = pd.DataFrame(group_data)
+                averages = df_group.mean(numeric_only=True)
+        
+                group_summary_rows.append({
+                    "Group": group_name,
+                    "Avg Young’s Modulus (MPa)": round(averages["Young’s Modulus"], 2) if not pd.isna(averages["Young’s Modulus"]) else "—",
+                    "Avg Max Stress (MPa)": round(averages["Max Stress"], 2) if not pd.isna(averages["Max Stress"]) else "—",
+                    "Avg Stress at Break (MPa)": round(averages["Stress at Break"], 2) if not pd.isna(averages["Stress at Break"]) else "—",
+                    "Avg Strain at Break (%)": round(averages["Strain at Break"], 2) if not pd.isna(averages["Strain at Break"]) else "—",
+                })
+        
+            df_group_summary = pd.DataFrame(group_summary_rows)
+            st.dataframe(df_group_summary)
+        
+            # Optional CSV export
+            csv_group = df_group_summary.to_csv(index=False).encode()
+            st.download_button("📥 Download Group Averages CSV", csv_group, file_name="group_averages.csv", mime="text/csv")
+        
+        
+                with st.expander("📈 Show Stress–Strain Plot"):
+                    if st.button("Show Plot"):
+                        st.subheader(f"Stress–Strain Curve — {sample_selected}")
+                        df = sample_tables[sample_selected]
+                        if method == "Linear Regression":
+                            slope, x_fit, y_fit = compute_regression_modulus(df, (strain_min, strain_max))
+                        else:
+                            slope, x_fit, y_fit = compute_gradient_modulus(df, (strain_min, strain_max))
+        
+                        fig, ax = plt.subplots()
+                        strain_col = "Tensile strain (Strain 1)"
+                        stress_col = "Tensile stress"
+                        strain_data = df[strain_col] * (100 if df[strain_col].max() < 1 else 1)
+                        ax.plot(strain_data, df[stress_col], label="Raw Data", alpha=0.6)
+        
+                        if slope is not None:
+                            ax.plot(np.array(x_fit) * 100, y_fit, 'r--', label=f"Fit: E ≈ {slope:.2f} MPa")
+                            st.success(f"Estimated Young’s Modulus: {slope:.2f} MPa")
+                        else:
+                            st.warning("⚠️ Not enough valid data points in selected strain range.")
+        
+                        ax.set_xlabel("Tensile Strain / %")
+                        ax.set_ylabel("Tensile Stress / MPa")
+                        ax.legend()
+                        st.pyplot(fig)
 
         csv_data = summary_df.to_csv(index=False).encode()
         st.download_button("📥 Download Summary CSV", csv_data, file_name="tensile_summary.csv", mime="text/csv")
