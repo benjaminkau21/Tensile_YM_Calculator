@@ -199,54 +199,26 @@ if uploaded_file:
                 strain_at_break[sample_selected] = manual_val
 
         # --- Display parameters ---
-        st.subheader("📌 Sample Parameters")
-        for key in metadata_keys:
-            value = meta.get(key)
-            if pd.notna(value):
-                st.write(f"**{key}**: {value} MPa")
-            else:
-                st.write(f"**{key}**: _Not available_")
-
-        if sample_selected in strain_at_break:
-            st.write(f"**Tensile strain at Break / %**: {strain_at_break[sample_selected]:.2f} %")
-
-        # --- Compute and Plot ---
-        compute_modulus = compute_regression_modulus if method == "Linear Regression" else compute_gradient_modulus
-        slope, x_fit, y_fit = compute_modulus(df, (strain_min, strain_max))
-
-        st.subheader(f"📊 Stress–Strain Curve — {sample_selected}")
-        fig, ax = plt.subplots()
-        strain_col = "Tensile strain (Strain 1)"
-        stress_col = "Tensile stress"
-        strain_data = df[strain_col] * (100 if df[strain_col].max() < 1 else 1)
-        ax.plot(strain_data, df[stress_col], label="Raw Data", alpha=0.6)
-
-        if slope is not None:
-            x_plot = np.array(x_fit) * 100
-            ax.plot(x_plot, slope * np.array(x_fit), 'r--', label=f"Fit: E ≈ {slope:.2f} MPa")
-            st.success(f"**Estimated Young’s Modulus:** {slope:.2f} MPa")
-        else:
-            st.warning("⚠️ Not enough valid data points in selected strain range.")
-
-        ax.set_xlabel("Tensile Strain / %")
-        ax.set_ylabel("Tensile Stress / MPa")
-        ax.legend()
-        st.pyplot(fig)
-
-        # --- Export all moduli ---
-        st.subheader("📤 Export Young’s Moduli for All Samples")
-        results = []
-        for sample_name, df_sample in sample_tables.items():
-            E, _, _ = compute_modulus(df_sample, (strain_min, strain_max))
+        # Display table summary
+        st.subheader("📋 Summary of All Samples")
+        
+        summary_rows = []
+        for sample_name, df in sample_tables.items():
+            slope, _, _ = compute_regression_modulus(df, (strain_min / 100, strain_max / 100))
+            E_value = round(slope, 2) if slope is not None else "Not Computed"
+            
+            meta = sample_metadata.get(sample_name, {})
             row = {
                 "Sample": sample_name,
-                "Young’s Modulus (MPa)": round(E, 2) if E is not None else "Not Computed"
+                "Young’s Modulus (MPa)": E_value,
+                "Max Stress (MPa)": meta.get("Tensile stress at Maximum Force", "—"),
+                "Stress at Break (MPa)": meta.get("Tensile stress at TENSILE STRESS at breaks", "—"),
             }
-            row.update(sample_metadata.get(sample_name, {}))
-            if strain_at_break.get(sample_name) is not None:
-                row["Tensile strain at Break / %"] = strain_at_break[sample_name]
-            results.append(row)
-
-        df_moduli = pd.DataFrame(results)
-        csv = df_moduli.to_csv(index=False).encode()
-        st.download_button("Download Moduli CSV", csv, file_name="youngs_moduli.csv", mime="text/csv")
+            summary_rows.append(row)
+        
+        summary_df = pd.DataFrame(summary_rows)
+        st.dataframe(summary_df, use_container_width=True)
+        
+        # Optional: download CSV
+        csv_data = summary_df.to_csv(index=False).encode()
+        st.download_button("📥 Download Summary CSV", csv_data, file_name="tensile_summary.csv", mime="text/csv")
